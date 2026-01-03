@@ -5,10 +5,11 @@ import * as THREE from 'three';
 import './App.css';
 import { SceneManager } from './components/SceneManager';
 import { useAudioClock } from './hooks/useAudioClock';
+import { useVJStore } from './store/useVJStore';
 
 function App() {
   const { initAudio, getAudioData, isInitialized } = useAudioClock();
-  // const { sceneIndex, beatCount, activeGeometry, materialMode } = useVisualState(); // Obsolete
+  const { activeEffects } = useVJStore();
   const [showCursor, setShowCursor] = useState(true);
   const cursorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,6 +42,9 @@ function App() {
     }
   }, []);
 
+  const showBloom = activeEffects.includes('bloom');
+  const showChromatic = activeEffects.includes('chromatic');
+
   return (
     <div
       ref={containerRef}
@@ -53,7 +57,7 @@ function App() {
             <h1>EVOLUTION ENGINE</h1>
             <p>Beat-driven procedural generative visualizer.</p>
             <div className="controls-hint">
-              VISUALS EVOLVE EVERY <span>16 BEATS</span>
+              VISUALS EVOLVE EVERY <span>16 BARS</span>
               <br />
               <span>DOUBLE CLICK</span> FOR FULLSCREEN
             </div>
@@ -70,17 +74,16 @@ function App() {
 
             <EffectComposer>
               <Bloom
-                intensity={1.0}
-                luminanceThreshold={0.4}
+                intensity={showBloom ? 1.5 : 0}
+                luminanceThreshold={0.2}
                 luminanceSmoothing={0.9}
                 mipmapBlur
               />
               <ChromaticAberration
-                offset={new THREE.Vector2(0.001, 0.001)}
+                offset={showChromatic ? new THREE.Vector2(0.005, 0.005) : new THREE.Vector2(0, 0)}
               />
             </EffectComposer>
           </Canvas>
-
 
           <div className="vj-ui">
             {/* UI Removed for Cinematic Experience */}
