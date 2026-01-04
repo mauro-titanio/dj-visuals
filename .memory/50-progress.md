@@ -11,8 +11,8 @@
 - [x] Initial shader-based reactive objects.
 - [x] Implementation of `THREE.InstancedMesh` for 60 FPS performance.
 - [x] **New**: Beat Detection & 16-beat phrase quantization.
-- [x] **New**: Zustand-driven scene indexing (200 procedural states).
-- [x] **New**: Parametric shape morphing and palette interpolation.
+- [x] **New**: Visual Replication of Shutterstock motifs (Waveforms, Tunnels, Disco Ball).
+- [x] **New**: Berlin-X High-Fidelity Expansion (HUD, RectAreaLights, SmokeSwarms).
 - [x] UI refinements (Status indicators, Fullscreen, Cursor auto-hide).
 
 ## Known Issues
