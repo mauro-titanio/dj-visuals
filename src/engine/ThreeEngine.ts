@@ -1,9 +1,11 @@
 import {
     BlendFunction,
+    ChromaticAberrationEffect,
     EffectComposer,
     EffectPass,
     GlitchEffect,
     NoiseEffect,
+    PixelationEffect,
     RenderPass,
     ScanlineEffect,
     VignetteEffect
@@ -21,6 +23,8 @@ export class ThreeEngine {
     public noiseEffect: NoiseEffect;
     public scanlineEffect: ScanlineEffect;
     public vignetteEffect: VignetteEffect;
+    public chromaticAberrationEffect: ChromaticAberrationEffect;
+    public pixelationEffect: PixelationEffect;
 
     // Lights
     private ambientLight: THREE.AmbientLight;
@@ -67,13 +71,12 @@ export class ThreeEngine {
         this.scanlineEffect.blendMode.opacity.value = 0.15;
 
         this.noiseEffect = new NoiseEffect({
-            blendFunction: BlendFunction.SCREEN, // Use SCREEN or similar
+            blendFunction: BlendFunction.SCREEN,
             premultiply: true
         });
         this.noiseEffect.blendMode.opacity.value = 0.1;
 
         this.vignetteEffect = new VignetteEffect({
-            eskil: false,
             offset: 0.1,
             darkness: 0.6
         });
@@ -84,15 +87,34 @@ export class ThreeEngine {
             strength: new THREE.Vector2(0.3, 0.6)
         });
 
-        // Effect Pass
-        const effectPass = new EffectPass(
+        this.chromaticAberrationEffect = new ChromaticAberrationEffect({
+            offset: new THREE.Vector2(0.001, 0.001),
+            radialModulation: false,
+            modulationOffset: 0.1
+        });
+
+        this.pixelationEffect = new PixelationEffect(0);
+
+        // Pass 1: UV Transformations (Digital Distortion)
+        // These transform texture coordinates and cannot mix with convolution
+        const distortionPass = new EffectPass(
             this.camera,
+            this.glitchEffect,
+            this.pixelationEffect
+        );
+
+        // Pass 2: Overlays & Convolution (Analog Effects)
+        // Chromatic Aberration behaves like convolution (blur) in some contexts
+        const overlayPass = new EffectPass(
+            this.camera,
+            this.chromaticAberrationEffect,
             this.scanlineEffect,
             this.noiseEffect,
-            this.vignetteEffect,
-            this.glitchEffect
+            this.vignetteEffect
         );
-        this.composer.addPass(effectPass);
+
+        this.composer.addPass(distortionPass);
+        this.composer.addPass(overlayPass);
 
         // Events
         window.addEventListener('resize', this.onResize.bind(this));
@@ -109,13 +131,30 @@ export class ThreeEngine {
         this.composer.setSize(width, height);
     }
 
-    updateLights(energy: number) {
-        // Ambient flicker (Boosted base from 0.1 to 0.4)
-        this.ambientLight.intensity = 0.4 + energy * 0.2;
-
-        // Strobe effect on high energy (Boosted from 50 to 150)
-        this.strobeLight.intensity = energy > 0.8 ? energy * 150 : energy * 10;
+    updateEngine(delta: number, audio: any) {
+        // 1. Lights
+        this.ambientLight.intensity = 0.4 + audio.energy * 0.2;
+        this.strobeLight.intensity = audio.energy > 0.8 ? audio.energy * 150 : audio.energy * 10;
         this.strobeLight.position.x = Math.sin(performance.now() * 0.001) * 20;
+
+        // Subtle light movement using delta
+        this.directionalLight.position.x += Math.sin(delta * 2) * 5;
+        this.directionalLight.position.z += Math.cos(delta * 2) * 5;
+
+        // 2. Effects
+        // Chromatic Aberration follows treble and transients
+        const chromOffset = audio.treble * 0.01;
+        this.chromaticAberrationEffect.offset.set(chromOffset, chromOffset);
+
+        // Pixelation Glitch on strong kicks
+        if (audio.isKick && audio.energy > 0.85) {
+            this.pixelationEffect.granularity = 10;
+        } else {
+            this.pixelationEffect.granularity = 0;
+        }
+
+        // Noise follows overall tension
+        this.noiseEffect.blendMode.opacity.value = 0.05 + audio.energy * 0.15;
     }
 
     render(delta: number) {

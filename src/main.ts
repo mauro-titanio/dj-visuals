@@ -63,7 +63,7 @@ class App {
         this.cameraEngine.update(delta, audio, this.threeEngine.camera, elapsedTime);
 
         // 3. Render and Lights
-        this.threeEngine.updateLights(audio.energy);
+        this.threeEngine.updateEngine(delta, audio);
         this.threeEngine.render(delta);
 
         requestAnimationFrame((t) => this.loop(t));
@@ -92,6 +92,11 @@ class App {
         const camModes = ['steady', 'kinetic', 'dolly_zoom', 'orbital_chaos', 'macro'];
         const camChapter = Math.floor(time / camCycleLength) % camModes.length;
         this.cameraEngine.setMode(camModes[camChapter]);
+
+        // 4. Material Mode Cycle (Solid vs Net)
+        const matCycleLength = 30; // 30s solid, 30s net
+        const matMode = (Math.floor(time / matCycleLength) % 2 === 0) ? 'solid' : 'net';
+        this.particleEngine.setMaterialMode(matMode);
     }
 }
 

@@ -123,7 +123,6 @@ export const generateShape = (type: ParticleShape, count: number): Float32Array 
                 break;
             }
             case 'star': {
-                const t = Math.random() * Math.PI * 2;
                 const points = 5;
                 const r = (i % 2 === 0) ? 10 : 4;
                 const angle = Math.floor(Math.random() * points) * (Math.PI * 2 / points);
