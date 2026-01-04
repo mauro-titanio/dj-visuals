@@ -70,22 +70,28 @@ class App {
     }
 
     private updateNarrative(time: number, audio: VisualizerAudioData) {
-        // Override on high energy Drop
-        if (audio.energy > 0.9 && audio.isKick) {
-            this.activeShape = 'scatter';
+        // 1. Glitch Morphing (Unexpected shape flickering on kicks)
+        if (audio.energy > 0.8 && audio.isKick && Math.random() > 0.7) {
+            const glitchShapes: ParticleShape[] = ['scatter', 'vortex', 'spikes', 'shards'];
+            this.activeShape = glitchShapes[Math.floor(Math.random() * glitchShapes.length)];
             return;
         }
 
-        const cycleLength = 12; // High tension progression
+        // 2. Shape Chapter Cycle
+        const shapeCycleLength = 12;
         const shapes: ParticleShape[] = [
             'monolith', 'spikes', 'shards', 'prism', 'structure',
             'knot', 'cross', 'grid', 'pyramid', 'cube_hollow',
-            'star', 'spiral', 'wave', 'fountain', 'ring',
-            'sphere', 'dna', 'vortex', 'cube', 'tunnel'
+            'star', 'spiral', 'wave', 'fountain', 'ring'
         ];
+        const shapeChapter = Math.floor(time / shapeCycleLength) % shapes.length;
+        this.activeShape = shapes[shapeChapter];
 
-        const chapter = Math.floor(time / cycleLength) % shapes.length;
-        this.activeShape = shapes[chapter];
+        // 3. Camera Mode Cycle
+        const camCycleLength = 8;
+        const camModes = ['steady', 'kinetic', 'dolly_zoom', 'orbital_chaos', 'macro'];
+        const camChapter = Math.floor(time / camCycleLength) % camModes.length;
+        this.cameraEngine.setMode(camModes[camChapter]);
     }
 }
 

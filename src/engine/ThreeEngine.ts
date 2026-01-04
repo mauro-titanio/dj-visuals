@@ -25,6 +25,7 @@ export class ThreeEngine {
     // Lights
     private ambientLight: THREE.AmbientLight;
     public strobeLight: THREE.PointLight;
+    private directionalLight: THREE.DirectionalLight;
 
     constructor(canvas: HTMLCanvasElement) {
         // 1. Core
@@ -33,8 +34,12 @@ export class ThreeEngine {
         this.camera.position.z = 50;
 
         // Lights Setup
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Base ambient
         this.scene.add(this.ambientLight);
+
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.directionalLight.position.set(5, 10, 7);
+        this.scene.add(this.directionalLight);
 
         this.strobeLight = new THREE.PointLight(0xffffff, 0, 100);
         this.strobeLight.position.set(0, 10, 20);
@@ -105,11 +110,11 @@ export class ThreeEngine {
     }
 
     updateLights(energy: number) {
-        // Ambient flicker
-        this.ambientLight.intensity = 0.1 + energy * 0.1;
+        // Ambient flicker (Boosted base from 0.1 to 0.4)
+        this.ambientLight.intensity = 0.4 + energy * 0.2;
 
-        // Strobe effect on high energy
-        this.strobeLight.intensity = energy > 0.8 ? energy * 50 : energy * 5;
+        // Strobe effect on high energy (Boosted from 50 to 150)
+        this.strobeLight.intensity = energy > 0.8 ? energy * 150 : energy * 10;
         this.strobeLight.position.x = Math.sin(performance.now() * 0.001) * 20;
     }
 

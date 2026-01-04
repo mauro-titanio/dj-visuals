@@ -4,9 +4,10 @@ import { generateShape, type ParticleShape } from './ParticleShapes';
 
 export class ParticleEngine {
     private count = 10000;
-    private points: THREE.Points;
+    private mesh: THREE.InstancedMesh;
     private shapes: Record<string, Float32Array>;
-    private startPositions: Float32Array;
+    private currentPositions: Float32Array;
+    private dummy = new THREE.Object3D();
 
     constructor(scene: THREE.Scene) {
         // 1. Pre-generate all shapes
@@ -37,96 +38,101 @@ export class ParticleEngine {
             scatter: generateShape('scatter', this.count),
         };
 
-        this.startPositions = new Float32Array(this.shapes['scatter']);
+        this.currentPositions = new Float32Array(this.shapes['scatter']);
 
-        // 2. Setup Mesh
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(this.startPositions, 3));
-
-        const material = new THREE.PointsMaterial({
-            color: 0xaaaaaa,
-            size: 0.03,
-            sizeAttenuation: true,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
+        // 2. Setup Mesh (True 3D Spheres - High Fidelity)
+        const geometry = new THREE.SphereGeometry(0.08, 16, 12); // Smoother geometry
+        const material = new THREE.MeshPhongMaterial({
+            color: 0xeeeeee,
+            specular: 0x444444,
+            shininess: 100,
+            emissive: 0x222222
         });
 
-        this.points = new THREE.Points(geometry, material);
-        scene.add(this.points);
+        this.mesh = new THREE.InstancedMesh(geometry, material, this.count);
+        this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        scene.add(this.mesh);
     }
 
     update(delta: number, audio: VisualizerAudioData, targetShape: ParticleShape) {
-        const positions = this.points.geometry.attributes.position.array as Float32Array;
         const targetBuffer = this.shapes[targetShape] || this.shapes['scatter'];
-
         const morphSpeed = delta * 1.5;
-        const instability = audio.bass * 0.5;
 
         for (let i = 0; i < this.count; i++) {
             const i3 = i * 3;
 
-            // 1. Interpolate
+            // 1. Interpolate (Morphing)
             const tx = targetBuffer[i3];
             const ty = targetBuffer[i3 + 1];
             const tz = targetBuffer[i3 + 2];
 
-            const cx = positions[i3];
-            const cy = positions[i3 + 1];
-            const cz = positions[i3 + 2];
+            let cx = this.currentPositions[i3];
+            let cy = this.currentPositions[i3 + 1];
+            let cz = this.currentPositions[i3 + 2];
 
-            positions[i3] += (tx - cx) * morphSpeed;
-            positions[i3 + 1] += (ty - cy) * morphSpeed;
-            positions[i3 + 2] += (tz - cz) * morphSpeed;
+            this.currentPositions[i3] += (tx - cx) * morphSpeed;
+            this.currentPositions[i3 + 1] += (ty - cy) * morphSpeed;
+            this.currentPositions[i3 + 2] += (tz - cz) * morphSpeed;
 
-            // 2. Audio Noise
-            if (audio.energy > 0.1) {
-                positions[i3] += (Math.random() - 0.5) * instability;
-                positions[i3 + 1] += (Math.random() - 0.5) * instability;
-                positions[i3 + 2] += (Math.random() - 0.5) * instability;
+            // 2. Industrial Twist & Shear (Driven by Bass)
+            const twistAmount = audio.bass * 0.2;
+            const angle = cy * twistAmount;
+            const s = Math.sin(angle);
+            const c = Math.cos(angle);
+
+            const nx = cx * c - cz * s;
+            const nz = cx * s + cz * c;
+            cx = nx;
+            cz = nz;
+
+            // 3. Spectral Vibration (High Frequency Jitter)
+            const vibration = (audio.treble * 0.2 + audio.mid * 0.1);
+            if (vibration > 0.01) {
+                cx += (Math.random() - 0.5) * vibration;
+                cy += (Math.random() - 0.5) * vibration;
+                cz += (Math.random() - 0.5) * vibration;
             }
 
-            // 3. Kick Expansion
+            // 4. Industrial Scan Sweep (Procedural Wave)
+            const scanPos = (Math.sin(performance.now() * 0.002) * 50);
+            const scanDist = Math.abs(cx - scanPos);
+            if (scanDist < 5) {
+                const scanImpact = (1 - scanDist / 5) * 2;
+                cz += scanImpact * audio.energy;
+            }
+
+            // 5. Non-Uniform Kick Impact (Industrial Stress)
             if (audio.isKick) {
-                const dist = Math.sqrt(cx * cx + cy * cy + cz * cz);
-                if (dist > 0.1) {
-                    const push = 0.5 / dist;
-                    positions[i3] += cx * push;
-                    positions[i3 + 1] += cy * push;
-                    positions[i3 + 2] += cz * push;
-                }
+                cx *= (1 + audio.energy * 0.1);
+                cy *= (1 - audio.energy * 0.05);
             }
+
+            // 6. Apply to Instance Matrix
+            this.dummy.position.set(cx, cy, cz);
+
+            // Inverse Scale Logic inside instance (Adjusted for 0.1 base radius)
+            // energy: 0 -> scale: 2.0 (total radius 0.2)
+            // energy: 1 -> scale: 0.5 (total radius 0.05)
+            const maxScale = 2.0;
+            const minScale = 0.5;
+            const baseScale = maxScale - (maxScale - minScale) * audio.energy;
+            const kickScale = audio.isKick ? 1.2 : 1.0;
+            this.dummy.scale.setScalar(baseScale * kickScale);
+
+            this.dummy.updateMatrix();
+            this.mesh.setMatrixAt(i, this.dummy.matrix);
         }
 
-        this.points.geometry.attributes.position.needsUpdate = true;
+        this.mesh.instanceMatrix.needsUpdate = true;
 
-        // 1. Inverse Density-Size Logic
-        // energy: 0 -> count: 20, size: 0.5
-        // energy: 1 -> count: 10000, size: 0.03
-
-        // a. Dynamic Count (Draw Range)
+        // 7. Dynamic Density (Count)
         const minCount = 20;
-        const maxCount = this.count; // 10000
-        const targetCount = Math.floor(minCount + (maxCount - minCount) * audio.energy);
-        this.points.geometry.setDrawRange(0, targetCount);
-
-        // b. Dynamic Size (Inverse proportional)
-        const maxSize = 0.5;
-        const minSize = 0.03;
-        // Inverse linear mapping: size decreases as energy/count increases
-        const targetSize = maxSize - (maxSize - minSize) * audio.energy;
-        const mat = this.points.material as THREE.PointsMaterial;
-        mat.size += (targetSize - mat.size) * 0.1;
-
-        // 2. High Energy Pulsing (Extra kick for techno impact)
-        if (audio.isKick) {
-            mat.size *= 1.2;
-        }
+        const targetCount = Math.floor(minCount + (this.count - minCount) * audio.energy);
+        this.mesh.count = targetCount;
 
         // Rotation
         const rotSpeed = 0.1 + audio.treble * 0.2;
-        this.points.rotation.y += delta * rotSpeed;
-        this.points.rotation.z += delta * 0.05;
+        this.mesh.rotation.y += delta * rotSpeed;
+        this.mesh.rotation.z += delta * 0.05;
     }
 }
